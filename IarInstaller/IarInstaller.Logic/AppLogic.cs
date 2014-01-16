@@ -8,13 +8,19 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.IO;
 
+using Ionic.Zip;
+using IarInstaller.IarInstaller.Logic;
+
 namespace IarInstaller.IarInstaller.Logic
 {
-    class AppLogic
+    public class AppLogic
     {
         static private string PartPackFilePath;
         static private string IARInstallationPath;
         static private Dictionary<string,bool> FolderDict;
+        static private Dictionary<string, bool> PartPackDict;
+        static private string TempPartpackFolder;
+        static private string DeviceName;
 
 
 
@@ -42,21 +48,77 @@ namespace IarInstaller.IarInstaller.Logic
             {
                 return;
             }
-
+            
             if (IsCleanIARInstallation() == false)
             {
-                MessageBox.Show("Error in the Installation of EWARM in selected Folder or Its a Bug!!!", "Error in IAR Install folder", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Error in the Installation of EWARM in selected Folder or Its a Bug!!", "Error in IAR Install folder", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
-            } 
+            }
 
-            VerifyPartPackZipFile();
+            if (VerifyPartPackZipFile() == false)
+            {
 
-            VerifyPartPackZipFileContent();
+                MessageBox.Show("Invalid Zip file!!!", "Error in IAR partpack file", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
 
+            SetupPartPackUnzipArea();
+
+            UnzipPartpackInTempFolder();
+
+            if (VerifyPartPackZipFileContent() == false)
+            {
+                MessageBox.Show("Partpack file is completely Invalid ", "Error in IAR partpack file", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            
+            GetDeviceName();
+
+            if (string.IsNullOrEmpty(DeviceName))
+            {
+                MessageBox.Show("Empty Device name, Re-Install partpack", "Error in User Input", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }            
+            
+            
+            
             InstallPartPackZipToIAR();
 
             NotifyUserResult();
 
+        }
+
+        private static void GetDeviceName()
+        {
+            try
+            {
+                string[] deviceNameList = Directory.GetDirectories(TempPartpackFolder + "\\config\\devices\\Atmel\\");
+                DeviceName = deviceNameList[0];
+            }
+            catch(Exception e)
+            {            
+                DeviceName =  Prompt.ShowDialog("Enter Device Name (Folder Name for Partpack in Installation):", "Device Name");
+            }                        
+        }
+
+        private static void UnzipPartpackInTempFolder()
+        {            
+            using (ZipFile tempZip = ZipFile.Read(PartPackFilePath))
+            {
+                tempZip.ExtractAll(TempPartpackFolder);                
+            }            
+        }
+
+        public static string GetTemporaryDirectory()
+        {
+            string tempDirectory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(tempDirectory);
+            return tempDirectory;
+        }
+
+        private static void SetupPartPackUnzipArea()
+        {
+            TempPartpackFolder = GetTemporaryDirectory();                        
         }
 
         public static bool IsCleanIARInstallation()
@@ -64,24 +126,35 @@ namespace IarInstaller.IarInstaller.Logic
             return (CheckIfEWARMIsInstalled() && CleanFolderStructureForEwarm());                            
         }
 
-        private static bool CleanFolderStructureForEwarm()
+        public static bool CleanFolderStructureForEwarm()
         {
-            string[] folderChecks = {"config", "examples", "inc", "config\\debugger\\Atmel", "config\\devices\\Atmel", "config\\flashloader\\Atmel", "config\\linker\\Atmel", "examples\\Atmel\\", "inc\\Atmel"};
+            string[] folderChecks = {"config\\debugger\\Atmel", "config\\devices\\Atmel", "config\\flashloader\\Atmel", "config\\linker\\Atmel", "examples\\Atmel\\", "inc\\Atmel"};            
+
+            FolderDict = new Dictionary<string, bool>();
+
+            return DirectoryVerification(IARInstallationPath, ref FolderDict, folderChecks);            
+        }
+
+        private static bool DirectoryVerification(string pathToVerify, ref Dictionary<string, bool> objectDict, string[] folderChecks)
+        {
             bool flag = false;
 
-            foreach(string folder in folderChecks)
-            {                
-                if(Directory.GetDirectories(IARInstallationPath + "\\" + folderChecks).Length == 0)
+            foreach (string folder in folderChecks)
+            {
+                try
                 {
-                    FolderDict.Add(folder, false);                    
-                }
-                else
-                {
-                    FolderDict.Add(folder, true);
+                    var tempObject = Directory.GetDirectories(pathToVerify + "\\" + folder).Length;
+                    objectDict.Add(folder, true);
                     flag = true;
                 }
+                catch (Exception e)
+                {
+                    objectDict.Add(folder, false);
+                }
             }
-            return flag;            
+
+            return flag;
+
         }
 
         private static void NotifyUserResult()
@@ -89,14 +162,116 @@ namespace IarInstaller.IarInstaller.Logic
             throw new NotImplementedException();
         }
 
-        private static void InstallPartPackZipToIAR()
+        private static bool InstallPartPackZipToIAR()
         {
-            throw new NotImplementedException();
+            bool flagInstall = CheckWhetherPartpackIsInstalled();
+            if (flagInstall == true)
+            {
+                DialogResult userInp = MessageBox.Show("Partpack Already Installed in Your computer. Re-Install?", "Already Installed!", MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
+                if (userInp == DialogResult.Cancel)
+                    return false;
+            }
+            else
+            {
+                CopyFilesFromPartpackToIAR();
+                return true;
+            }
+            return true;
         }
 
-        private static void VerifyPartPackZipFileContent()
+        private static void CopyFilesFromPartpackToIAR()
         {
-            throw new NotImplementedException();
+            foreach(string folder in FolderDict.Keys)
+            {
+                if (PartPackDict.Keys.Contains(folder) && PartPackDict[folder] == true && FolderDict[folder] == true)
+                {
+                    MakeDeviceFolderInIAR(folder+ "\\" +DeviceName);
+                    string tempDeviceName = getPartpackDeviceFolder(folder);
+                    string copyDeviceName = DeviceName;
+
+                    if (DeviceName.ToLower() == tempDeviceName.ToLower() && DeviceName != tempDeviceName)
+                    {
+                        copyDeviceName = tempDeviceName;
+                    }
+
+                    CopyFilesToNewFolder(folder + "\\" + copyDeviceName, folder + "\\" + tempDeviceName);
+                }                
+            }
+        }
+
+        private static string getPartpackDeviceFolder(string sFolder)
+        {
+            try
+            {
+                string[] listDir = Directory.GetDirectories(TempPartpackFolder + "\\" + sFolder);
+                if (listDir.Length == 1)
+                {
+                    return listDir[0];
+                }
+                else
+                {
+                    MessageBox.Show("Bug!! Better Call Vishnu " + sFolder);
+                    return null;
+                }
+            }
+            catch (Exception e)
+            {
+
+                MessageBox.Show("Some Exception Wanna Check");
+                return null;
+            }
+
+        }
+
+        private static void CopyFilesToNewFolder(string dFolder, string sFolder)
+        {
+
+            DirectoryInfo sourcedinfo = new DirectoryInfo(TempPartpackFolder + "\\" + sFolder);
+            DirectoryInfo destinfo = new DirectoryInfo(IARInstallationPath + "\\" + dFolder);
+            GenerarlHelp.CopyAll(sourcedinfo, destinfo);            
+        }
+
+        public static void MakeDeviceFolderInIAR(string folder)
+        {
+            try
+            {
+                if (Directory.Exists(folder))
+                {
+                    return;
+                }
+                string tempDir = Directory.GetCurrentDirectory();
+                IARInstallationPath = @"C:\Program Files (x86)\IAR Systems\Embedded Workbench 6.5\arm\";
+
+                Directory.SetCurrentDirectory(IARInstallationPath);
+
+                Directory.CreateDirectory( folder);
+                Directory.SetCurrentDirectory(tempDir);
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("Some Bug, Go and Tell Vishnu!!!");
+            }
+        }
+
+        private static bool CheckWhetherPartpackIsInstalled()
+        {
+            try
+            {
+                Directory.GetDirectories(IARInstallationPath + "\\config\\devices\\Atmel\\" + DeviceName);
+                return true;
+            }
+            catch(Exception e)
+            {
+                return false;
+            }
+            
+        }
+
+        private static bool VerifyPartPackZipFileContent()
+        {
+            PartPackDict = new Dictionary<string, bool>();
+
+            return DirectoryVerification(IARInstallationPath, ref PartPackDict, FolderDict.Keys.ToArray<string>());     
         }
 
         private static bool CheckIfEWARMIsInstalled()
@@ -154,10 +329,24 @@ namespace IarInstaller.IarInstaller.Logic
 
         private static bool VerifyPartPackZipFile()
         {
-            return false;
+            try
+            {
+                ZipFile zipCheck = ZipFile.Read(PartPackFilePath);
+                
+                return true;
+                
+            }
+
+            catch (Exception e)
+            {
+
+                return false;
+            }
+
+            
         }
 
-        private static bool  FindIarInstallationDirectory()
+        public static bool  FindIarInstallationDirectory()
         {
             string checkRegistryKey1 = @"SOFTWARE\Wow6432Node\IAR Systems";
             string checkRegistryKey2 = @"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{4D7DD9A6-4461-4CBE-AB31-F3949AB55BC1}";
@@ -170,16 +359,16 @@ namespace IarInstaller.IarInstaller.Logic
                 keyData = tempKey.GetValue("InstallLocation").ToString();
             }
 
-            keyData = "Null";
+//            keyData = "Null";
 
-            if (keyData == "Null")
+            if (string.IsNullOrEmpty(keyData))
             {
                 string dataFromUser = GetInstallFolderFromUser();
                 keyData = dataFromUser.Length == 0 ? "null" : dataFromUser;
             }
             IARInstallationPath = keyData;
 
-            return (keyData == "null") ? false : true;            
+            return (string.IsNullOrEmpty(keyData)) ? false : true;            
         }
     }
 }

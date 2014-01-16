@@ -36,6 +36,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Ionic.Zip">
+      <HintPath>.\Ionic.Zip.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -50,6 +53,7 @@
   <ItemGroup>
     <Compile Include="IarInstaller.Logic\AppLogic.cs" />
     <Compile Include="IarInstaller.Logic\FileAssociation.cs" />
+    <Compile Include="IarInstaller.Logic\GeneralHelp.cs" />
     <Compile Include="IarInstaller.UI\IarInstaller.cs">
       <SubType>Form</SubType>
     </Compile>
