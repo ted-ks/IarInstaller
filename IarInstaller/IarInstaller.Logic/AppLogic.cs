@@ -93,7 +93,7 @@ namespace IarInstaller.IarInstaller.Logic
             try
             {
                 string[] deviceNameList = Directory.GetDirectories(TempPartpackFolder + "\\config\\devices\\Atmel\\");
-                DeviceName = deviceNameList[0];
+                DeviceName = Path.GetFileNameWithoutExtension(deviceNameList[0]);
             }
             catch(Exception e)
             {            
@@ -105,8 +105,9 @@ namespace IarInstaller.IarInstaller.Logic
         {            
             using (ZipFile tempZip = ZipFile.Read(PartPackFilePath))
             {
-                tempZip.ExtractAll(TempPartpackFolder);                
-            }            
+                tempZip.ExtractAll(TempPartpackFolder);                                
+            }         
+            
         }
 
         public static string GetTemporaryDirectory()
@@ -159,7 +160,8 @@ namespace IarInstaller.IarInstaller.Logic
 
         private static void NotifyUserResult()
         {
-            throw new NotImplementedException();
+            ShowResultsDialog.ShowResultsDialogWindow("Partpack installation results", PartPackDict);
+            Application.Exit();
         }
 
         private static bool InstallPartPackZipToIAR()
@@ -170,13 +172,13 @@ namespace IarInstaller.IarInstaller.Logic
                 DialogResult userInp = MessageBox.Show("Partpack Already Installed in Your computer. Re-Install?", "Already Installed!", MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
                 if (userInp == DialogResult.Cancel)
                     return false;
-            }
-            else
-            {
-                CopyFilesFromPartpackToIAR();
-                return true;
-            }
-            return true;
+            }            
+            
+                
+             CopyFilesFromPartpackToIAR();
+             return true;
+            
+            
         }
 
         private static void CopyFilesFromPartpackToIAR()
@@ -185,7 +187,7 @@ namespace IarInstaller.IarInstaller.Logic
             {
                 if (PartPackDict.Keys.Contains(folder) && PartPackDict[folder] == true && FolderDict[folder] == true)
                 {
-                    MakeDeviceFolderInIAR(folder+ "\\" +DeviceName);
+                    MakeDeviceFolderInIAR(Path.Combine(folder, DeviceName));
                     string tempDeviceName = getPartpackDeviceFolder(folder);
                     string copyDeviceName = DeviceName;
 
@@ -193,8 +195,8 @@ namespace IarInstaller.IarInstaller.Logic
                     {
                         copyDeviceName = tempDeviceName;
                     }
-
-                    CopyFilesToNewFolder(folder + "\\" + copyDeviceName, folder + "\\" + tempDeviceName);
+                    
+                    CopyFilesToNewFolder(folder + "\\" + copyDeviceName, folder + "\\" +  tempDeviceName);
                 }                
             }
         }
@@ -203,15 +205,37 @@ namespace IarInstaller.IarInstaller.Logic
         {
             try
             {
-                string[] listDir = Directory.GetDirectories(TempPartpackFolder + "\\" + sFolder);
+                string[] listDir = Directory.GetDirectories(Path.Combine(TempPartpackFolder, sFolder));
                 if (listDir.Length == 1)
                 {
-                    return listDir[0];
+                    return Path.GetFileNameWithoutExtension(listDir[0]);                                        
                 }
                 else
                 {
-                    MessageBox.Show("Bug!! Better Call Vishnu " + sFolder);
-                    return null;
+                    string tempTopFolder = Path.Combine(TempPartpackFolder, sFolder);
+
+                    if (Directory.Exists(Path.Combine(tempTopFolder, DeviceName)) || Directory.Exists(Path.Combine(tempTopFolder, DeviceName.ToLower())))
+                    {
+                        return DeviceName;
+                    }
+                    else
+                    {
+                        string tempDeviceFolder = Path.Combine(tempTopFolder, DeviceName);
+
+                        MessageBox.Show(Path.Combine(tempTopFolder, DeviceName));
+
+                        Directory.CreateDirectory(Path.Combine(tempTopFolder, DeviceName));
+
+                        DirectoryInfo t1 = new DirectoryInfo(tempTopFolder);
+                        DirectoryInfo t2 = new DirectoryInfo(tempDeviceFolder);
+
+                        foreach (FileInfo fi in t1.GetFiles())
+                        {
+                            fi.CopyTo(Path.Combine(t2.ToString(), fi.Name), true);
+                        }
+
+                        return DeviceName;
+                    }                                        
                 }
             }
             catch (Exception e)
@@ -226,8 +250,9 @@ namespace IarInstaller.IarInstaller.Logic
         private static void CopyFilesToNewFolder(string dFolder, string sFolder)
         {
 
-            DirectoryInfo sourcedinfo = new DirectoryInfo(TempPartpackFolder + "\\" + sFolder);
-            DirectoryInfo destinfo = new DirectoryInfo(IARInstallationPath + "\\" + dFolder);
+            DirectoryInfo sourcedinfo = new DirectoryInfo(Path.Combine(TempPartpackFolder,  sFolder));
+            DirectoryInfo destinfo = new DirectoryInfo(Path.Combine(IARInstallationPath , dFolder));
+
             GenerarlHelp.CopyAll(sourcedinfo, destinfo);            
         }
 
@@ -240,7 +265,7 @@ namespace IarInstaller.IarInstaller.Logic
                     return;
                 }
                 string tempDir = Directory.GetCurrentDirectory();
-                IARInstallationPath = @"C:\Program Files (x86)\IAR Systems\Embedded Workbench 6.5\arm\";
+               
 
                 Directory.SetCurrentDirectory(IARInstallationPath);
 
@@ -249,7 +274,7 @@ namespace IarInstaller.IarInstaller.Logic
             }
             catch (Exception e)
             {
-                MessageBox.Show("Some Bug, Go and Tell Vishnu!!!");
+                MessageBox.Show("Some Bug, Go and Tell Vishnu!!!" + e.Message.ToString());
             }
         }
 

@@ -19,7 +19,7 @@ namespace IarInstaller
             
             if (!FileAssociation.IsAssociated(".iar"))
             {
-                FileAssociation.AssociateIconAndApplication (".iar", "IarPartPackInstaller", "iar File", @"C:\Program Files (x86)\Octave-3.6.2\share\octave\3.6.2\imagelib\octave-logo.ico", Application.ExecutablePath);
+                FileAssociation.AssociateIconAndApplication (".iar", "IarPartPackInstaller", "iar File", @"octave-logo.ico", Application.ExecutablePath);
                 MessageBox.Show("File Assiciation added", "Iar Part Pack Installer", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
                 Application.Exit();                           
             }

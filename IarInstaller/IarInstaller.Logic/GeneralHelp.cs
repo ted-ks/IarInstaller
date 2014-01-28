@@ -28,17 +28,58 @@ namespace IarInstaller.IarInstaller.Logic
         }
     }
 
+    public static class ShowResultsDialog
+    {
+
+        public static void ShowResultsDialogWindow(string caption, Dictionary<string, bool> installData)
+        {
+            Form dialogWindow = new Form();
+
+            dialogWindow.Width = 500;
+            dialogWindow.Height = 400;
+
+            dialogWindow.Text = caption;
+
+            Label textLabel = new Label() { Left = 50, Top = 20, Text = "Install Summary" };
+            TextBox installResult = new TextBox() { Left = 50, Top = 50, Width = 400};
+            Button confirmation = new Button() { Text = "Ok", Left = 350, Width = 100, Top = 320 };
+            installResult.Multiline = true;
+            installResult.AcceptsReturn = true;
+            installResult.ScrollBars = ScrollBars.Vertical;
+            installResult.WordWrap = true;
+            installResult.Height = 200;
+
+            
+            foreach(string folder in installData.Keys)
+            {
+                if (installData[folder] == true)
+                {
+                    installResult.AppendText("Copied - " + folder +"\r\n");
+                }
+            }
+            installResult.Enabled = false;
+            confirmation.Click += (sender, e) => { dialogWindow.Close(); };
+            dialogWindow.Controls.Add(confirmation);
+            dialogWindow.Controls.Add(installResult);
+            dialogWindow.Controls.Add(textLabel);
+            dialogWindow.ShowDialog();
+            return;
+        }
+
+    }
+
     public static class GenerarlHelp
     {
         public static void CopyAll(DirectoryInfo source, DirectoryInfo target)
         {
             try
             {
+
+                
                 //check if the target directory exists
                 if (Directory.Exists(target.FullName) == false)
                 {
-                    MessageBox.Show("Bug!! You know - Better call Vishnu");
-                    return;
+                    Directory.CreateDirectory(target.FullName);                    
                 }
 
                 //copy all the files into the new directory
@@ -60,7 +101,7 @@ namespace IarInstaller.IarInstaller.Logic
             }
             catch (Exception ie)
             {
-                MessageBox.Show("Some Exception Occured!!!");
+                MessageBox.Show("Some Exception Occured!!!" + ie.Message);
             }
         }
 
